@@ -1,0 +1,11 @@
+{
+  "dataset_name": "allenai/sciq",
+  "domain": "Science (Physics, Chemistry, Biology, Earth Science)",
+  "tokenizer_type": "gpt2",
+  "vocab_size": 50257,
+  "eot_token": 50256,
+  "train_examples": 11679,
+  "val_examples": 1000,
+  "train_tokens": 1451764,
+  "val_tokens": 122604
+}
