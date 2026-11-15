@@ -282,7 +282,10 @@ What gas do plants absorb during photosynthesis?
               <label><span class="label-left">Verified Ground-Truth Answer <span class="info-icon" data-tip="The real answer we check the AI against.">i</span></span></label>
               <input type="text" id="halTruth" />
             </div>
-            <button class="btn" onclick="runHallucinationTest()">Run Closed-Book vs. Grounded Test</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn" onclick="runHallucinationTest(false)">Run Closed-Book vs. Grounded Test</button>
+              <button class="btn btn-secondary" onclick="testMismatchedContext()">Test Mismatched Context (Should Say "I Don't Know")</button>
+            </div>
           </div>
           <div>
             <h3>1. Closed-Book (Memory Only — High Hallucination Risk)</h3>
@@ -543,12 +546,23 @@ What gas do plants absorb during photosynthesis?
       `;
     }
 
-    async function runHallucinationTest() {
+    function testMismatchedContext() {
+      if (EVAL_SAMPLES.length > 1) {
+        const curIdx = parseInt(document.getElementById('halSampleSelect').value, 10) || 0;
+        const other = EVAL_SAMPLES[(curIdx + 1) % EVAL_SAMPLES.length];
+        document.getElementById('halSupport').value = other.support;
+        document.getElementById('halTruth').value = 'unknown';
+      }
+      runHallucinationTest(true);
+    }
+
+    async function runHallucinationTest(expectAbstain = false) {
       const payload = {
         ckpt_name: document.getElementById('halCkpt').value,
         question: document.getElementById('halQuestion').value,
         support: document.getElementById('halSupport').value,
         correct_answer: document.getElementById('halTruth').value,
+        expect_abstain: expectAbstain,
       };
       const res = await fetch('/api/hallucination_test', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -562,7 +576,8 @@ What gas do plants absorb during photosynthesis?
       const d = await res.json();
       const renderBox = (obj) => {
         if (!obj) return 'No context provided.';
-        const cls = obj.diagnosis.includes('Match') ? 'alert-good' : (obj.diagnosis.includes('Confident') ? 'alert-bad' : 'alert-warn');
+        const isGood = obj.diagnosis.includes('Match') || obj.diagnosis.includes('Honest Abstention');
+        const cls = isGood ? 'alert-good' : (obj.diagnosis.includes('Confident') ? 'alert-bad' : 'alert-warn');
         return `
           <div style="margin-bottom:10px;">${renderConfidenceTokens(obj.tokens)}</div>
           <div class="alert ${cls}"><b>Diagnosis:</b> ${obj.diagnosis} (Avg Confidence: ${obj.avg_confidence_pct}%)</div>
