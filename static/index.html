@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SLM Learning & Hallucination Lab</title>
+  <title>slm-lab — Small Language Model Learning & Hallucination Studio</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --panel: #1e293b;
-      --panel-2: #0b1220;
-      --border: #334155;
+      --bg: #0b1120;
+      --panel: #151e31;
+      --panel-2: #0a101d;
+      --border: #28354f;
       --text: #f1f5f9;
       --muted: #94a3b8;
       --accent: #38bdf8;
+      --accent-2: #818cf8;
       --green: #22c55e;
       --yellow: #eab308;
       --red: #ef4444;
@@ -21,37 +22,52 @@
     * { box-sizing: border-box; }
     body {
       margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--text); line-height: 1.5;
+      background: radial-gradient(circle at top right, #16223b 0%, var(--bg) 45%);
+      color: var(--text); line-height: 1.5; min-height: 100vh;
     }
     header {
-      background: var(--panel-2); border-bottom: 1px solid var(--border);
-      padding: 14px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+      background: rgba(10, 16, 29, 0.92); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border); padding: 14px 24px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+      position: sticky; top: 0; z-index: 50;
     }
-    .brand h1 { margin: 0; font-size: 18px; font-weight: 700; color: var(--accent); }
+    .brand h1 {
+      margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
     .brand p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
     .hw-badge {
       background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.4);
-      color: #86efac; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+      color: #86efac; padding: 6px 13px; border-radius: 999px; font-size: 12px; font-weight: 600;
     }
-    nav {
-      display: flex; gap: 8px; padding: 12px 24px; background: var(--panel);
-      border-bottom: 1px solid var(--border); flex-wrap: wrap;
+    nav.stepper {
+      display: flex; gap: 8px; padding: 12px 24px; background: rgba(21, 30, 49, 0.85);
+      border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center;
     }
     .tab-btn {
-      background: transparent; color: var(--muted); border: 1px solid var(--border);
-      padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;
+      background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+      padding: 8px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 13px;
+      display: inline-flex; align-items: center; gap: 7px; transition: all 0.15s ease;
     }
-    .tab-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
-    main { max-width: 1200px; margin: 24px auto; padding: 0 20px 60px; }
-    .tab-panel { display: none; }
+    .tab-btn:hover { border-color: var(--accent); color: var(--text); }
+    .tab-btn .step-num {
+      width: 20px; height: 20px; border-radius: 50%; background: #1e293b; color: var(--muted);
+      display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+    }
+    .tab-btn.active { background: var(--accent); color: #0b1120; border-color: var(--accent); }
+    .tab-btn.active .step-num { background: #0b1120; color: var(--accent); }
+    main { max-width: 1240px; margin: 24px auto; padding: 0 20px 70px; }
+    .tab-panel { display: none; animation: fadeIn 0.18s ease; }
     .tab-panel.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
     .card {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
-      margin-bottom: 18px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+      margin-bottom: 18px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
     }
     .card h2 {
-      margin: 0 0 12px; font-size: 16px; display: flex; align-items: center; gap: 8px;
+      margin: 0 0 14px; font-size: 16px; display: flex; align-items: center; gap: 8px;
     }
     label {
       display: flex; align-items: center; justify-content: space-between; font-size: 13px;
@@ -61,57 +77,74 @@
     input[type="text"], input[type="number"], select, textarea {
       width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
       border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: inherit;
+      transition: border-color 0.15s ease;
     }
-    textarea { resize: vertical; min-height: 80px; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 82px; }
     .form-row { margin-bottom: 14px; }
     .btn {
-      background: var(--accent); color: #0f172a; border: none; padding: 10px 18px;
-      border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #0ea5e9); color: #0b1120; border: none;
+      padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+      transition: transform 0.1s ease, opacity 0.15s ease;
     }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
     .btn-danger { background: var(--red); color: white; }
-    .btn-secondary { background: #334155; color: var(--text); }
+    .btn-secondary { background: #28354f; color: var(--text); }
+    .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .preset-chip {
+      background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #bae6fd; padding: 5px 11px; border-radius: 999px; font-size: 12px; cursor: pointer;
+    }
+    .preset-chip:hover { background: rgba(56, 189, 248, 0.22); }
     .info-icon {
       display: inline-flex; align-items: center; justify-content: center;
-      width: 17px; height: 17px; border-radius: 50%; background: rgba(56, 189, 248, 0.2);
-      color: var(--accent); font-size: 11px; font-weight: 700; cursor: help; position: relative;
-      border: 1px solid rgba(56, 189, 248, 0.45); flex-shrink: 0;
+      width: 17px; height: 17px; border-radius: 50%; background: rgba(56, 189, 248, 0.18);
+      color: var(--accent); font-size: 11px; font-weight: 700; cursor: pointer;
+      border: 1px solid rgba(56, 189, 248, 0.45); flex-shrink: 0; user-select: none;
     }
-    .info-icon:hover::after, .info-icon:focus::after {
-      content: attr(data-tip);
-      position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
-      width: 270px; background: #020617; color: #e2e8f0; border: 1px solid var(--accent);
-      border-radius: 8px; padding: 10px 12px; font-size: 12px; font-weight: 400;
-      line-height: 1.45; z-index: 999; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-      white-space: normal; pointer-events: none;
+    #floatingTooltip {
+      position: fixed; display: none; max-width: 290px; background: #020617; color: #e2e8f0;
+      border: 1px solid var(--accent); border-radius: 10px; padding: 10px 13px; font-size: 12px;
+      line-height: 1.5; z-index: 9999; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65); pointer-events: none;
     }
-    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin: 12px 0; }
     .stat-box {
-      background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
     }
     .stat-box .k { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
     .stat-box .v { font-size: 18px; font-weight: 700; margin-top: 4px; color: var(--text); }
+    .progress-wrap {
+      width: 100%; height: 10px; background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 999px; overflow: hidden; margin: 10px 0 6px;
+    }
+    .progress-bar {
+      height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--purple));
+      transition: width 0.3s ease;
+    }
     .tok-chip {
       display: inline-block; padding: 3px 7px; margin: 3px; border-radius: 6px;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
       background: rgba(56, 189, 248, 0.14); border: 1px solid rgba(56, 189, 248, 0.35);
     }
     .tok-id { color: var(--muted); font-size: 10px; margin-left: 4px; }
+    .conf-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .conf-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
     .conf-tok {
       display: inline-block; padding: 2px 4px; margin: 1px; border-radius: 4px;
-      font-family: ui-monospace, monospace; font-size: 13px; cursor: pointer; position: relative;
+      font-family: ui-monospace, monospace; font-size: 13px; cursor: pointer;
     }
     .conf-high { background: rgba(34, 197, 94, 0.22); border-bottom: 2px solid var(--green); }
     .conf-med  { background: rgba(234, 179, 8, 0.22); border-bottom: 2px solid var(--yellow); }
     .conf-low  { background: rgba(239, 68, 68, 0.24); border-bottom: 2px solid var(--red); }
     .alert {
       padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px;
-      background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35);
+      background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.32);
     }
     .alert-warn { background: rgba(234, 179, 8, 0.14); border-color: rgba(234, 179, 8, 0.45); color: #fde047; }
     .alert-bad { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
     .alert-good { background: rgba(34, 197, 94, 0.14); border-color: rgba(34, 197, 94, 0.45); color: #86efac; }
-    svg.chart { width: 100%; height: 240px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
+    svg.chart { width: 100%; height: 245px; background: var(--panel-2); border-radius: 10px; border: 1px solid var(--border); }
     pre {
       background: var(--panel-2); padding: 12px; border-radius: 8px; border: 1px solid var(--border);
       overflow-x: auto; font-size: 12px; white-space: pre-wrap;
@@ -119,21 +152,23 @@
   </style>
 </head>
 <body>
+  <div id="floatingTooltip"></div>
+
   <header>
     <div class="brand">
-      <h1>Small Language Model (SLM) Learning & Hallucination Lab</h1>
-      <p>Interactive from-scratch training, token confidence, and hallucination explorer — hover any <span class="info-icon" data-tip="Info icons explain every AI concept in plain, high-school-level English!">i</span> to learn.</p>
+      <h1>slm-lab · Visual Language Model &amp; Hallucination Studio</h1>
+      <p>Learn how LLMs train, think, hallucinate, and abstain — hover or click any <span class="info-icon" data-tip="Info icons explain every AI concept in plain, high-school-level English!">i</span> to learn.</p>
     </div>
     <div id="hwBadge" class="hw-badge">Checking GPU...</div>
   </header>
 
-  <nav>
-    <button class="tab-btn active" onclick="showTab('data', this)">1. Data &amp; Tokenizer</button>
-    <button class="tab-btn" onclick="showTab('train', this)">2. Train Model (Live GPU)</button>
-    <button class="tab-btn" onclick="showTab('test', this)">3. Test &amp; Token Confidence</button>
-    <button class="tab-btn" onclick="showTab('hallucination', this)">4. Hallucination Lab</button>
-    <button class="tab-btn" onclick="showTab('evals', this)">5. Automated Evals</button>
-    <button class="tab-btn" onclick="showTab('rag', this)">6. Full RAG Pipeline</button>
+  <nav class="stepper">
+    <button class="tab-btn active" onclick="showTab('data', this)"><span class="step-num">1</span>Data &amp; Tokenizer</button>
+    <button class="tab-btn" onclick="showTab('train', this)"><span class="step-num">2</span>Train Model (GPU)</button>
+    <button class="tab-btn" onclick="showTab('test', this)"><span class="step-num">3</span>Token Confidence</button>
+    <button class="tab-btn" onclick="showTab('hallucination', this)"><span class="step-num">4</span>Hallucination Lab</button>
+    <button class="tab-btn" onclick="showTab('evals', this)"><span class="step-num">5</span>Automated Evals</button>
+    <button class="tab-btn" onclick="showTab('rag', this)"><span class="step-num">6</span>Full RAG Pipeline</button>
   </nav>
 
   <main>
@@ -141,13 +176,13 @@
     <section id="tab-data" class="tab-panel active">
       <div class="grid-2">
         <div class="card">
-          <h2>Domain Dataset Inspector <span class="info-icon" data-tip="A dataset is the textbook the AI reads to learn. A 'domain' dataset focuses on one subject (like Science) so even a small model can learn useful patterns.">i</span></h2>
+          <h2>Domain Dataset Inspector <span class="info-icon" data-tip="A dataset is the textbook the AI reads to learn. A 'domain' dataset focuses on one subject (like Finance, Healthcare, Legal, or Science) so even a small model can learn useful patterns.">i</span></h2>
           <div class="form-row">
             <label><span class="label-left">Select Prepared Dataset <span class="info-icon" data-tip="Ready-to-train domain datasets on disk. Pick one to inspect its tokens and sample Q&A records.">i</span></span></label>
             <select id="dsSelect" onchange="loadDatasetInfo()"></select>
           </div>
           <div class="form-row" style="border-top:1px solid var(--border); padding-top:12px;">
-            <label><span class="label-left">Add from 50+ Industry Domain Catalog <span class="info-icon" data-tip="Download, format, and tokenize any of 54 real-world domain datasets (Finance, Healthcare, Legal, Code, Cybersecurity, STEM, Customer Support, ESG) with 1 click!">i</span></span></label>
+            <label><span class="label-left">Add from 54-Domain Industry Catalog <span class="info-icon" data-tip="Download, format, and tokenize any of 54 real-world domain datasets (Finance, Healthcare, Legal, Code, Cybersecurity, STEM, Customer Support, ESG) with 1 click!">i</span></span></label>
             <div style="display:flex; gap:8px;">
               <select id="catalogSelect"></select>
               <button id="prepDomainBtn" class="btn" onclick="prepareSelectedDomain()" style="white-space:nowrap;">Download &amp; Prepare</button>
@@ -202,7 +237,7 @@
             </div>
             <div class="form-row">
               <label><span class="label-left">Training Steps <span class="info-icon" data-tip="How many study rounds (batches) the AI completes. More steps = better learning, up to the point where it starts memorizing (overfitting).">i</span></span></label>
-              <input type="number" id="maxIters" value="400" step="100" min="50" max="3000" />
+              <input type="number" id="maxIters" value="600" step="100" min="10" max="5000" />
             </div>
             <div class="form-row">
               <label><span class="label-left">Learning Rate <span class="info-icon" data-tip="How big a step the AI takes when fixing a mistake. Too high = chaotic; too low = learns too slowly.">i</span></span></label>
@@ -215,12 +250,13 @@
             <button id="startTrainBtn" class="btn" onclick="startTraining()">Start GPU Training</button>
             <button id="stopTrainBtn" class="btn btn-danger" onclick="stopTraining()" disabled>Stop</button>
           </div>
-          <div id="trainMsg" class="alert" style="margin-top:12px;">Ready to train on your RTX 4060.</div>
+          <div class="progress-wrap"><div id="trainProgress" class="progress-bar"></div></div>
+          <div id="trainMsg" class="alert" style="margin-top:8px;">Ready to train on your GPU.</div>
         </div>
 
         <div class="card">
           <h2>Live Learning Curve (Loss) <span class="info-icon" data-tip="Loss measures how wrong the AI's guesses are (lower = smarter). Watch 'Train Loss' (study guide) vs 'Val Loss' (pop quiz on unseen questions). If Train drops while Val goes UP, the model is memorizing (overfitting)!">i</span></h2>
-          <svg id="lossChart" class="chart" viewBox="0 0 600 240"></svg>
+          <svg id="lossChart" class="chart" viewBox="0 0 600 245"></svg>
           <div id="liveStats" class="stat-grid"></div>
           <div id="overfitAlert"></div>
         </div>
@@ -231,6 +267,11 @@
     <section id="tab-test" class="tab-panel">
       <div class="card">
         <h2>Test Your Model &amp; Inspect Token Confidence <span class="info-icon" data-tip="Every word the AI writes is chosen by rolling weighted dice. Green = the AI was very sure (>50%). Yellow = unsure (20-50%). Red = guessing (<20%). Hover any word to see its runner-up choices!">i</span></h2>
+        <div class="chip-row">
+          <button class="preset-chip" onclick="setTestPreset('grounded')">Try: Photosynthesis (Grounded)</button>
+          <button class="preset-chip" onclick="setTestPreset('closed')">Try: Closed-Book Question</button>
+          <button class="preset-chip" onclick="setTestPreset('creative')">Try: High Temp (Hallucination)</button>
+        </div>
         <div class="grid-2">
           <div>
             <div class="form-row">
@@ -238,8 +279,11 @@
               <select id="genCkpt"></select>
             </div>
             <div class="form-row">
-              <label><span class="label-left">Prompt <span class="info-icon" data-tip="The starting text you give the AI. Try '### Question:\nWhat gas do plants absorb?\n\n### Answer:\n'">i</span></span></label>
-              <textarea id="genPrompt">### Question:
+              <label><span class="label-left">Prompt <span class="info-icon" data-tip="The starting text you give the AI.">i</span></span></label>
+              <textarea id="genPrompt">### Science Context:
+During photosynthesis, plants use sunlight to convert water and carbon dioxide into glucose and oxygen.
+
+### Question:
 What gas do plants absorb during photosynthesis?
 
 ### Answer:
@@ -258,8 +302,13 @@ What gas do plants absorb during photosynthesis?
             <button class="btn" onclick="runGenerate()">Generate &amp; Inspect Confidence</button>
           </div>
           <div>
-            <label><span class="label-left">Generated Output (Color = Model Confidence) <span class="info-icon" data-tip="Green = >50% sure, Yellow = 20-50%, Red = <20% guessing. Hover a token to see top-3 alternatives!">i</span></span></label>
-            <div id="genOut" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:14px; min-height:150px;"></div>
+            <label><span class="label-left">Generated Output (Color = Model Confidence) <span class="info-icon" data-tip="Hover a token to see its exact probability and top-3 runner-up choices!">i</span></span></label>
+            <div class="conf-legend">
+              <span><span class="conf-dot" style="background:var(--green)"></span>&gt;50% Sure</span>
+              <span><span class="conf-dot" style="background:var(--yellow)"></span>20–50% Unsure</span>
+              <span><span class="conf-dot" style="background:var(--red)"></span>&lt;20% Guessing</span>
+            </div>
+            <div id="genOut" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:14px; min-height:150px;">Click "Generate &amp; Inspect Confidence" to test.</div>
             <div id="genMeta" class="stat-grid"></div>
           </div>
         </div>
@@ -269,27 +318,31 @@ What gas do plants absorb during photosynthesis?
     <!-- TAB 4: HALLUCINATION LAB -->
     <section id="tab-hallucination" class="tab-panel">
       <div class="card">
-        <h2>Hallucination Lab: Closed-Book vs. Grounded (RAG) <span class="info-icon" data-tip="A hallucination is when an AI invents a fake or wrong answer while sounding completely confident. Here you can compare 'Closed-Book' (guessing from memory) vs 'Grounded' (reading the science textbook passage first — just like RAG in real companies!).">i</span></h2>
+        <h2>Hallucination Lab: Closed-Book vs. Grounded (RAG) <span class="info-icon" data-tip="A hallucination is when an AI invents a fake or wrong answer while sounding completely confident. Compare 'Closed-Book' (guessing from memory) vs 'Grounded' (reading the passage first).">i</span></h2>
+        <div class="chip-row">
+          <button class="preset-chip" onclick="setHalPreset('vibranium')">Try: Vibranium Trick Question</button>
+          <button class="preset-chip" onclick="applyHalSample()">Reset to Unseen Quiz Question</button>
+        </div>
         <div class="grid-2">
           <div>
             <div class="form-row">
-              <label><span class="label-left">Checkpoint <span class="info-icon" data-tip="Use your Science-trained checkpoint (e.g. sciq_ckpt.pt) for best results.">i</span></span></label>
+              <label><span class="label-left">Checkpoint <span class="info-icon" data-tip="Compare sciq_ckpt.pt (always guesses) vs sciq_abstain_dpo.pt (trained to say 'I don't know').">i</span></span></label>
               <select id="halCkpt"></select>
             </div>
             <div class="form-row">
-              <label><span class="label-left">Pick an Unseen Science Quiz Question <span class="info-icon" data-tip="These 30 questions come from the validation split — the model NEVER saw them during training!">i</span></span></label>
+              <label><span class="label-left">Pick an Unseen Quiz Question <span class="info-icon" data-tip="These questions come from the validation split — the model NEVER saw them during training!">i</span></span></label>
               <select id="halSampleSelect" onchange="applyHalSample()"></select>
             </div>
             <div class="form-row">
-              <label><span class="label-left">Question <span class="info-icon" data-tip="You can also type a trick question (e.g., 'What is the boiling point of vibranium?') to watch the AI hallucinate!">i</span></span></label>
+              <label><span class="label-left">Question <span class="info-icon" data-tip="Type any question or click a preset above.">i</span></span></label>
               <input type="text" id="halQuestion" />
             </div>
             <div class="form-row">
-              <label><span class="label-left">Science Context (Textbook Passage for Grounded / RAG mode) <span class="info-icon" data-tip="In real companies, RAG (Retrieval-Augmented Generation) pastes the relevant document right into the prompt so the AI doesn't have to guess from memory.">i</span></span></label>
+              <label><span class="label-left">Context Passage (for Grounded / RAG mode) <span class="info-icon" data-tip="In real companies, RAG pastes the relevant document right into the prompt so the AI doesn't guess from memory.">i</span></span></label>
               <textarea id="halSupport"></textarea>
             </div>
             <div class="form-row">
-              <label><span class="label-left">Verified Ground-Truth Answer <span class="info-icon" data-tip="The real answer we check the AI against.">i</span></span></label>
+              <label><span class="label-left">Verified Ground-Truth Answer <span class="info-icon" data-tip="The real answer we check the AI against (use 'unknown' for impossible questions).">i</span></span></label>
               <input type="text" id="halTruth" />
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -300,7 +353,7 @@ What gas do plants absorb during photosynthesis?
           <div>
             <h3>1. Closed-Book (Memory Only — High Hallucination Risk)</h3>
             <div id="halClosed" class="card" style="background:var(--panel-2);">Run a test to see results.</div>
-            <h3>2. Grounded / RAG-Style (With Textbook Context)</h3>
+            <h3>2. Grounded / RAG-Style (With Context)</h3>
             <div id="halGrounded" class="card" style="background:var(--panel-2);">Run a test to see results.</div>
           </div>
         </div>
@@ -313,7 +366,7 @@ What gas do plants absorb during photosynthesis?
         <h2>Automated Evals &amp; Calibration Benchmark <span class="info-icon" data-tip="Instead of guessing whether a model got smarter by testing 1 or 2 prompts, 'Evals' automatically grade the AI on dozens of unseen questions — measuring accuracy, hallucination rate, abstention, and whether its confidence matches reality.">i</span></h2>
         <div class="grid-2">
           <div class="form-row">
-            <label><span class="label-left">Domain Benchmark <span class="info-icon" data-tip="Pick which industry domain's held-out questions to evaluate against (Finance 10-K, Healthcare PubMed, Legal Contracts, or Science).">i</span></span></label>
+            <label><span class="label-left">Domain Benchmark <span class="info-icon" data-tip="Pick which industry domain's held-out questions to evaluate against.">i</span></span></label>
             <select id="evalDataset"></select>
           </div>
           <div class="form-row">
@@ -338,11 +391,16 @@ What gas do plants absorb during photosynthesis?
     <!-- TAB 6: FULL RAG PIPELINE -->
     <section id="tab-rag" class="tab-panel">
       <div class="card">
-        <h2>End-to-End RAG (Retrieval-Augmented Generation) <span class="info-icon" data-tip="RAG = Search Engine + AI. Step 1: A fast Retriever searches 10,473 science textbook passages to find the best match. Step 2: That passage is pasted into the AI's prompt so it can answer accurately!">i</span></h2>
+        <h2>End-to-End RAG (Retrieval-Augmented Generation) <span class="info-icon" data-tip="RAG = Search Engine + AI. Step 1: A fast Retriever searches thousands of domain passages to find the best match. Step 2: That passage is pasted into the AI's prompt so it can answer accurately!">i</span></h2>
+        <div class="chip-row">
+          <button class="preset-chip" onclick="setRagPreset('sciq', 'What organelle converts sunlight into energy in plant cells?')">Try: Science (Photosynthesis)</button>
+          <button class="preset-chip" onclick="setRagPreset('finance', 'What factors affected operating income or revenue growth?')">Try: Finance (10-K Revenue)</button>
+          <button class="preset-chip" onclick="setRagPreset('healthcare', 'Does aspirin reduce cardiovascular risk in patients?')">Try: Healthcare (PubMed)</button>
+        </div>
         <div class="grid-2">
           <div>
             <div class="form-row">
-              <label><span class="label-left">Domain Knowledge Base <span class="info-icon" data-tip="Pick which industry corpus to search (Finance 10-K filings, Healthcare PubMed abstracts, Legal contract clauses, or Science).">i</span></span></label>
+              <label><span class="label-left">Domain Knowledge Base <span class="info-icon" data-tip="Pick which industry corpus to search.">i</span></span></label>
               <select id="ragDataset"></select>
             </div>
             <div class="form-row">
@@ -350,13 +408,18 @@ What gas do plants absorb during photosynthesis?
               <select id="ragCkpt"></select>
             </div>
             <div class="form-row">
-              <label><span class="label-left">Ask Any Science Question <span class="info-icon" data-tip="Your question is searched against 10,473 unique textbook passages, and the #1 match is automatically fed to the SLM.">i</span></span></label>
+              <label><span class="label-left">Ask Any Domain Question <span class="info-icon" data-tip="Your question is searched against all indexed passages, and the #1 match is automatically fed to the SLM.">i</span></span></label>
               <input type="text" id="ragQuery" value="What organelle converts sunlight into energy in plant cells?" />
             </div>
             <button class="btn" onclick="runRagPipeline()">Search Knowledge Base &amp; Generate Answer</button>
           </div>
           <div>
             <label><span class="label-left">SLM Grounded Answer (Confidence Heatmap) <span class="info-icon" data-tip="Notice: if the Retrieved Passage (#1) is wrong or off-topic, even a smart AI will fail ('Retrieval Failure' vs 'Generation Failure').">i</span></span></label>
+            <div class="conf-legend">
+              <span><span class="conf-dot" style="background:var(--green)"></span>&gt;50% Sure</span>
+              <span><span class="conf-dot" style="background:var(--yellow)"></span>20–50% Unsure</span>
+              <span><span class="conf-dot" style="background:var(--red)"></span>&lt;20% Guessing</span>
+            </div>
             <div id="ragAnswer" style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:14px;min-height:90px;">Ask a question to run RAG.</div>
             <div id="ragMeta" style="margin-top:8px;font-size:12px;color:var(--muted);"></div>
           </div>
@@ -370,11 +433,67 @@ What gas do plants absorb during photosynthesis?
     let EVAL_SAMPLES = [];
     let pollTimer = null;
 
+    // Smart viewport-aware floating tooltip
+    const tipEl = document.getElementById('floatingTooltip');
+    function showTip(target) {
+      const text = target.getAttribute('data-tip');
+      if (!text) return;
+      tipEl.textContent = text;
+      tipEl.style.display = 'block';
+      const rect = target.getBoundingClientRect();
+      const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+      let left = rect.left + rect.width / 2 - tw / 2;
+      left = Math.max(10, Math.min(window.innerWidth - tw - 10, left));
+      let top = rect.top - th - 10;
+      if (top < 10) top = rect.bottom + 10;
+      tipEl.style.left = left + 'px';
+      tipEl.style.top = top + 'px';
+    }
+    document.addEventListener('mouseover', e => {
+      const icon = e.target.closest('.info-icon');
+      if (icon) showTip(icon);
+    });
+    document.addEventListener('mouseout', e => {
+      if (e.target.closest('.info-icon')) tipEl.style.display = 'none';
+    });
+    document.addEventListener('click', e => {
+      const icon = e.target.closest('.info-icon');
+      if (icon) showTip(icon);
+      else tipEl.style.display = 'none';
+    });
+
     function showTab(name, btn) {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       btn.classList.add('active');
+    }
+
+    function setTestPreset(kind) {
+      if (kind === 'grounded') {
+        document.getElementById('genPrompt').value = "### Science Context:\nDuring photosynthesis, plants use sunlight to convert water and carbon dioxide into glucose and oxygen.\n\n### Question:\nWhat gas do plants absorb during photosynthesis?\n\n### Answer:\n";
+        document.getElementById('genTemp').value = 0.2;
+      } else if (kind === 'closed') {
+        document.getElementById('genPrompt').value = "### Question:\nWhat gas do plants absorb during photosynthesis?\n\n### Answer:\n";
+        document.getElementById('genTemp').value = 0.2;
+      } else {
+        document.getElementById('genPrompt').value = "### Science Context:\nDuring photosynthesis, plants use sunlight to convert water and carbon dioxide into glucose and oxygen.\n\n### Question:\nWhat gas do plants absorb during photosynthesis?\n\n### Answer:\n";
+        document.getElementById('genTemp').value = 1.2;
+      }
+    }
+
+    function setHalPreset(kind) {
+      if (kind === 'vibranium') {
+        document.getElementById('halQuestion').value = "What is the melting point of vibranium in degrees Celsius?";
+        document.getElementById('halSupport').value = "";
+        document.getElementById('halTruth').value = "unknown";
+      }
+    }
+
+    function setRagPreset(ds, q) {
+      const sel = document.getElementById('ragDataset');
+      if ([...sel.options].some(o => o.value === ds)) sel.value = ds;
+      document.getElementById('ragQuery').value = q;
     }
 
     async function loadSystem() {
@@ -391,7 +510,7 @@ What gas do plants absorb during photosynthesis?
       const evalDsOpts = data.datasets.filter(d => d.id !== 'shakespeare').map(d => `<option value="${d.id}">${d.label}</option>`).join('');
       document.getElementById('evalDataset').innerHTML = evalDsOpts;
       document.getElementById('ragDataset').innerHTML = evalDsOpts;
-      document.getElementById('ckptName').value = (document.getElementById('trainDataset').value || 'finance') + '_ckpt.pt';
+      document.getElementById('ckptName').value = (document.getElementById('trainDataset').value || 'sciq') + '_ckpt.pt';
 
       if (data.catalog) {
         const catOpts = data.catalog.map(c =>
@@ -418,6 +537,7 @@ What gas do plants absorb during photosynthesis?
       if (data.checkpoints.includes('sciq_ckpt.pt')) {
         document.getElementById('genCkpt').value = 'sciq_ckpt.pt';
         document.getElementById('halCkpt').value = 'sciq_ckpt.pt';
+        document.getElementById('ragCkpt').value = 'sciq_ckpt.pt';
       }
       loadDatasetInfo();
     }
@@ -467,7 +587,7 @@ What gas do plants absorb during photosynthesis?
         const s = EVAL_SAMPLES[0];
         document.getElementById('dsSample').innerHTML = `
           <label>Sample Training Record (Held-out Validation)</label>
-          <pre><b>Context:</b> ${s.support}\n\n<b>Question:</b> ${s.question}\n<b>Answer:</b> ${s.correct_answer}\n<b>Wrong Distractors:</b> ${s.distractors.join(' | ')}</pre>
+          <pre><b>Context:</b> ${s.support}\n\n<b>Question:</b> ${s.question}\n<b>Answer:</b> ${s.correct_answer}</pre>
         `;
       } else {
         document.getElementById('dsSample').innerHTML = '';
@@ -545,12 +665,8 @@ What gas do plants absorb during photosynthesis?
       const payload = {
         dataset: document.getElementById('trainDataset').value,
         ckpt_name: document.getElementById('ckptName').value.trim() || 'sciq_ckpt.pt',
-        n_layer: nLayer,
-        n_head: nHead,
-        n_embd: nEmbd,
-        block_size: blockSize,
-        max_iters: maxIters,
-        learning_rate: lr,
+        n_layer: nLayer, n_head: nHead, n_embd: nEmbd, block_size: blockSize,
+        max_iters: maxIters, learning_rate: lr,
         eval_interval: Math.max(10, Math.floor(maxIters / 8)),
       };
       const res = await fetch('/api/train/start', {
@@ -564,6 +680,7 @@ What gas do plants absorb during photosynthesis?
       }
       document.getElementById('startTrainBtn').disabled = true;
       document.getElementById('stopTrainBtn').disabled = false;
+      document.getElementById('trainProgress').style.width = '2%';
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(pollTrainStatus, 1000);
     }
@@ -575,7 +692,9 @@ What gas do plants absorb during photosynthesis?
     async function pollTrainStatus() {
       const res = await fetch('/api/train/status');
       const s = await res.json();
-      document.getElementById('trainMsg').textContent = `${s.message} (Step ${s.step}/${s.max_iters})`;
+      const pct = Math.min(100, Math.round((s.step / Math.max(1, s.max_iters)) * 100));
+      document.getElementById('trainProgress').style.width = pct + '%';
+      document.getElementById('trainMsg').textContent = `${s.message} (${pct}% · Step ${s.step}/${s.max_iters})`;
 
       const last = s.history[s.history.length - 1];
       if (last) {
@@ -603,7 +722,7 @@ What gas do plants absorb during photosynthesis?
     function drawChart(history) {
       const svg = document.getElementById('lossChart');
       if (!history.length) return;
-      const w = 600, h = 240, pad = 34;
+      const w = 600, h = 245, pad = 38;
       const maxStep = Math.max(1, history[history.length - 1].step);
       const allY = history.flatMap(p => [p.train_loss, p.val_loss]);
       const minY = Math.max(0, Math.min(...allY) - 0.3);
@@ -614,8 +733,10 @@ What gas do plants absorb during photosynthesis?
 
       const trainPts = history.map(p => `${sx(p.step)},${sy(p.train_loss)}`).join(' ');
       const valPts = history.map(p => `${sx(p.step)},${sy(p.val_loss)}`).join(' ');
+      const midY = ((minY + maxY) / 2).toFixed(1);
 
       svg.innerHTML = `
+        <line x1="${pad}" y1="${sy((minY+maxY)/2)}" x2="${w-pad}" y2="${sy((minY+maxY)/2)}" stroke="#1e293b" stroke-dasharray="4 4" />
         <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#334155" />
         <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="#334155" />
         <polyline fill="none" stroke="#38bdf8" stroke-width="2.5" points="${trainPts}" />
@@ -623,7 +744,10 @@ What gas do plants absorb during photosynthesis?
         <text x="${pad+8}" y="20" fill="#38bdf8" font-size="12" font-weight="bold">● Train Loss</text>
         <text x="${pad+105}" y="20" fill="#a855f7" font-size="12" font-weight="bold">● Val Loss</text>
         <text x="6" y="${pad+4}" fill="#94a3b8" font-size="11">${maxY.toFixed(1)}</text>
+        <text x="6" y="${sy((minY+maxY)/2)+4}" fill="#64748b" font-size="11">${midY}</text>
         <text x="6" y="${h-pad}" fill="#94a3b8" font-size="11">${minY.toFixed(1)}</text>
+        <text x="${pad}" y="${h-12}" fill="#64748b" font-size="11">Step 0</text>
+        <text x="${w-pad-48}" y="${h-12}" fill="#64748b" font-size="11">Step ${maxStep}</text>
       `;
     }
 
@@ -758,7 +882,7 @@ What gas do plants absorb during photosynthesis?
     }
 
     async function runRagPipeline() {
-      document.getElementById('ragAnswer').textContent = 'Searching 10,473 passages and generating...';
+      document.getElementById('ragAnswer').textContent = 'Searching passages and generating...';
       const res = await fetch('/api/rag', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
