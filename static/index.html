@@ -133,6 +133,7 @@
     <button class="tab-btn" onclick="showTab('test', this)">3. Test &amp; Token Confidence</button>
     <button class="tab-btn" onclick="showTab('hallucination', this)">4. Hallucination Lab</button>
     <button class="tab-btn" onclick="showTab('evals', this)">5. Automated Evals</button>
+    <button class="tab-btn" onclick="showTab('rag', this)">6. Full RAG Pipeline</button>
   </nav>
 
   <main>
@@ -321,6 +322,32 @@ What gas do plants absorb during photosynthesis?
         <div id="evalTableWrap" style="margin-top:14px;"></div>
       </div>
     </section>
+
+    <!-- TAB 6: FULL RAG PIPELINE -->
+    <section id="tab-rag" class="tab-panel">
+      <div class="card">
+        <h2>End-to-End RAG (Retrieval-Augmented Generation) <span class="info-icon" data-tip="RAG = Search Engine + AI. Step 1: A fast Retriever searches 10,473 science textbook passages to find the best match. Step 2: That passage is pasted into the AI's prompt so it can answer accurately!">i</span></h2>
+        <div class="grid-2">
+          <div>
+            <div class="form-row">
+              <label><span class="label-left">Checkpoint <span class="info-icon" data-tip="Try sciq_abstain_dpo.pt — if the retriever finds an irrelevant passage, the DPO model can even say 'I don't know'!">i</span></span></label>
+              <select id="ragCkpt"></select>
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Ask Any Science Question <span class="info-icon" data-tip="Your question is searched against 10,473 unique textbook passages, and the #1 match is automatically fed to the SLM.">i</span></span></label>
+              <input type="text" id="ragQuery" value="What organelle converts sunlight into energy in plant cells?" />
+            </div>
+            <button class="btn" onclick="runRagPipeline()">Search Knowledge Base &amp; Generate Answer</button>
+          </div>
+          <div>
+            <label><span class="label-left">SLM Grounded Answer (Confidence Heatmap) <span class="info-icon" data-tip="Notice: if the Retrieved Passage (#1) is wrong or off-topic, even a smart AI will fail ('Retrieval Failure' vs 'Generation Failure').">i</span></span></label>
+            <div id="ragAnswer" style="background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:14px;min-height:90px;">Ask a question to run RAG.</div>
+            <div id="ragMeta" style="margin-top:8px;font-size:12px;color:var(--muted);"></div>
+          </div>
+        </div>
+        <div id="ragHits" style="margin-top:16px;"></div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -353,6 +380,7 @@ What gas do plants absorb during photosynthesis?
       document.getElementById('halCkpt').innerHTML = ckptOpts;
       document.getElementById('evalCkpt').innerHTML = ckptOpts;
       document.getElementById('evalCompareCkpt').innerHTML = '<option value="">None (Single Model)</option>' + ckptOpts;
+      document.getElementById('ragCkpt').innerHTML = ckptOpts;
 
       if (data.checkpoints.includes('sciq_abstain_dpo.pt')) {
         document.getElementById('evalCkpt').value = 'sciq_abstain_dpo.pt';
@@ -674,6 +702,27 @@ What gas do plants absorb during photosynthesis?
         btn.disabled = false;
         btn.textContent = 'Run Automated Benchmark';
       }
+    }
+
+    async function runRagPipeline() {
+      document.getElementById('ragAnswer').textContent = 'Searching 10,473 passages and generating...';
+      const res = await fetch('/api/rag', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          ckpt_name: document.getElementById('ragCkpt').value,
+          query: document.getElementById('ragQuery').value,
+          top_k: 3,
+        })
+      });
+      const d = await res.json();
+      document.getElementById('ragAnswer').innerHTML = renderConfidenceTokens(d.generation.tokens);
+      document.getElementById('ragMeta').textContent = `Indexed passages: ${d.indexed_docs.toLocaleString()} | Avg Confidence: ${d.generation.avg_confidence_pct}%`;
+      document.getElementById('ragHits').innerHTML = '<label>Top-3 Retrieved Passages (Step 1 of RAG)</label>' + d.hits.map(h => `
+        <div class="alert" style="margin-top:8px;">
+          <b>#${h.rank} (Similarity Score: ${h.score})</b>${h.rank === 1 ? ' — <i>Fed to SLM</i>' : ''}<br/>
+          <span style="color:#cbd5e1;">${escapeHtml(h.text)}</span>
+        </div>
+      `).join('');
     }
 
     function escapeHtml(s) {

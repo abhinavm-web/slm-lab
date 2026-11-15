@@ -33,6 +33,10 @@ GPTConfig = model_mod.GPTConfig
 eval_mod = importlib.import_module("08_eval_suite")
 evaluate_checkpoint = eval_mod.evaluate_checkpoint
 
+rag_mod = importlib.import_module("09_rag_retriever")
+load_or_build_index = rag_mod.load_or_build_index
+RAG_INDEX = None
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 CKPT_DIR = BASE_DIR / "checkpoints"
@@ -106,6 +110,13 @@ class EvalReq(BaseModel):
     ckpt_name: str = "sciq_abstain_dpo.pt"
     compare_ckpt: str = ""
     n_samples: int = Field(default=25, ge=5, le=100)
+
+
+class RagReq(BaseModel):
+    ckpt_name: str = "sciq_ckpt.pt"
+    query: str
+    top_k: int = Field(default=3, ge=1, le=5)
+    temperature: float = 0.2
 
 
 def _get_dataset_dir(name: str) -> Path:
@@ -529,6 +540,18 @@ def run_eval(req: EvalReq) -> dict:
     if req.compare_ckpt and req.compare_ckpt != req.ckpt_name:
         baseline = evaluate_checkpoint(CKPT_DIR / req.compare_ckpt, n_samples=req.n_samples)
     return {"primary": primary, "baseline": baseline}
+
+
+@app.post("/api/rag")
+def run_rag(req: RagReq) -> dict:
+    global RAG_INDEX
+    if RAG_INDEX is None:
+        RAG_INDEX = load_or_build_index()
+    hits = RAG_INDEX.search(req.query, top_k=req.top_k)
+    top_ctx = hits[0]["text"] if hits else ""
+    prompt = f"### Science Context:\n{top_ctx}\n\n### Question:\n{req.query.strip()}\n\n### Answer:\n"
+    gen = _generate_with_confidence(req.ckpt_name, prompt, 45, req.temperature, 20, 0.95)
+    return {"hits": hits, "generation": gen, "indexed_docs": RAG_INDEX.n_docs}
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
