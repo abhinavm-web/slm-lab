@@ -25,6 +25,8 @@ import numpy as np
 import tiktoken
 from datasets import load_dataset
 
+from domain_catalog import DOMAIN_CATALOG
+
 BASE_DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
@@ -233,12 +235,139 @@ BUILDERS = {
 }
 
 
+def _extract_generic_record(row: dict, label_names: list[str] | None = None) -> tuple[str, str, str]:
+    """Extract (context, question, answer) from diverse Hugging Face dataset schemas."""
+    ctx = ""
+    for k in ("context", "passage", "support", "document", "text", "summary", "input"):
+        v = row.get(k)
+        if isinstance(v, str) and v.strip():
+            ctx = v.strip()[:1200]
+            break
+        if isinstance(v, dict) and "contexts" in v:
+            ctx = " ".join(v["contexts"])[:1200]
+            break
+
+    q = ""
+    for k in ("question", "instruction", "prompt", "query", "title", "question_stem"):
+        v = row.get(k)
+        if isinstance(v, str) and v.strip():
+            q = v.strip()[:600]
+            break
+
+    ans = ""
+    for k in ("answer", "response", "output", "best_answer", "long_answer", "code"):
+        v = row.get(k)
+        if isinstance(v, str) and v.strip():
+            ans = v.strip()[:800]
+            break
+
+    # Handle MMLU / ARC / OpenBookQA / MedMCQA multiple choice
+    if not ans and "choices" in row:
+        choices = row["choices"]
+        c_texts = choices.get("text", []) if isinstance(choices, dict) else choices
+        if isinstance(c_texts, list) and c_texts:
+            q = q + "\nChoices: " + " | ".join(str(c) for c in c_texts[:6])
+            ak = row.get("answerKey", row.get("answer", 0))
+            if isinstance(ak, int) and 0 <= ak < len(c_texts):
+                ans = str(c_texts[ak])
+            elif isinstance(ak, str) and len(ak) == 1 and ak.upper() in "ABCD":
+                idx = "ABCD".index(ak.upper())
+                ans = str(c_texts[idx]) if idx < len(c_texts) else ak
+    elif not ans and "cop" in row:  # MedMCQA
+        opts = [row.get(k, "") for k in ("opa", "opb", "opc", "opd")]
+        q = q + "\nChoices: " + " | ".join(str(o) for o in opts if o)
+        cop = int(row["cop"]) if row["cop"] is not None else 0
+        ans = str(opts[cop]) if 0 <= cop < len(opts) else ""
+
+    # Handle classification datasets
+    if not ans and "label" in row:
+        lbl = row["label"]
+        if isinstance(lbl, list):
+            ans = ", ".join(label_names[i] if label_names and i < len(label_names) else str(i) for i in lbl) or "none"
+        elif isinstance(lbl, int) and label_names and 0 <= lbl < len(label_names):
+            ans = label_names[lbl]
+        else:
+            ans = str(lbl)
+
+    if not q:
+        q = "Analyze or classify the following domain text."
+    if not ans:
+        ans = "I don't know based on the provided context."
+    return ctx, q, ans
+
+
+def prepare_catalog_domain(domain_id: str, max_train: int = 4000, max_val: int = 400) -> dict:
+    if domain_id in BUILDERS:
+        return BUILDERS[domain_id]()
+    if domain_id not in DOMAIN_CATALOG:
+        raise ValueError(f"Unknown domain: {domain_id}")
+
+    spec = DOMAIN_CATALOG[domain_id]
+    ds = load_dataset(spec["repo"], spec["config"]) if spec["config"] else load_dataset(spec["repo"])
+    splits = list(ds.keys())
+    train_split = "train" if "train" in splits else splits[0]
+    val_split = "validation" if "validation" in splits else ("test" if "test" in splits else None)
+
+    if val_split and val_split != train_split:
+        tr_ds = ds[train_split].select(range(min(max_train, len(ds[train_split]))))
+        va_ds = ds[val_split].select(range(min(max_val, len(ds[val_split]))))
+    else:
+        full = ds[train_split].select(range(min(max_train + max_val, len(ds[train_split]))))
+        cut = max(1, int(len(full) * 0.85))
+        tr_ds = full.select(range(cut))
+        va_ds = full.select(range(cut, len(full)))
+
+    feat = tr_ds.features.get("label")
+    label_names = getattr(feat, "names", None) or getattr(getattr(feat, "feature", None), "names", None)
+
+    def fmt_row(row: dict) -> tuple[str, dict]:
+        ctx, q, ans = _extract_generic_record(row, label_names)
+        text = (
+            (f"### Context:\n{ctx}\n\n" if ctx else "")
+            + f"### Question:\n{q}\n\n### Answer:\n{ans}<|endoftext|>\n\n"
+        )
+        return text, {"question": q, "correct_answer": ans, "distractors": [], "support": ctx}
+
+    train_texts, rag_docs = [], []
+    seen_ctx: set[str] = set()
+    for r in tr_ds:
+        txt, rec = fmt_row(r)
+        train_texts.append(txt)
+        if rec["support"] and rec["support"] not in seen_ctx:
+            seen_ctx.add(rec["support"])
+            rag_docs.append(rec["support"])
+
+    val_texts, eval_samples = [], []
+    for i, r in enumerate(va_ds):
+        txt, rec = fmt_row(r)
+        val_texts.append(txt)
+        if i < 100:
+            eval_samples.append({"id": i, **rec})
+
+    if not rag_docs:
+        rag_docs = [s["question"] + " " + s["correct_answer"] for s in eval_samples[:50]]
+
+    return _save_domain(
+        BASE_DATA_DIR / domain_id,
+        spec["repo"] + (f" ({spec['config']})" if spec["config"] else ""),
+        f"{spec['category']} — {spec['label']}",
+        train_texts,
+        val_texts,
+        eval_samples,
+        rag_docs,
+    )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare domain datasets from Hugging Face.")
-    parser.add_argument("--domain", choices=[*BUILDERS.keys(), "all"], default="all")
+    parser.add_argument(
+        "--domain",
+        choices=[*BUILDERS.keys(), *DOMAIN_CATALOG.keys(), "all"],
+        default="all",
+    )
     args = parser.parse_args()
 
     targets = list(BUILDERS.keys()) if args.domain == "all" else [args.domain]
     for name in targets:
-        info = BUILDERS[name]()
+        info = prepare_catalog_domain(name)
         print(f"[{name}] {info['domain']}: {info['train_tokens']:,} train tokens | {info['val_tokens']:,} val tokens")

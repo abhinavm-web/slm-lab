@@ -143,8 +143,16 @@
         <div class="card">
           <h2>Domain Dataset Inspector <span class="info-icon" data-tip="A dataset is the textbook the AI reads to learn. A 'domain' dataset focuses on one subject (like Science) so even a small model can learn useful patterns.">i</span></h2>
           <div class="form-row">
-            <label><span class="label-left">Select Prepared Dataset <span class="info-icon" data-tip="Science Q&A (allenai/sciq) has 11,679 science textbook facts, questions, and verified answers — ideal for testing whether the model tells the truth or hallucinates.">i</span></span></label>
+            <label><span class="label-left">Select Prepared Dataset <span class="info-icon" data-tip="Ready-to-train domain datasets on disk. Pick one to inspect its tokens and sample Q&A records.">i</span></span></label>
             <select id="dsSelect" onchange="loadDatasetInfo()"></select>
+          </div>
+          <div class="form-row" style="border-top:1px solid var(--border); padding-top:12px;">
+            <label><span class="label-left">Add from 50+ Industry Domain Catalog <span class="info-icon" data-tip="Download, format, and tokenize any of 54 real-world domain datasets (Finance, Healthcare, Legal, Code, Cybersecurity, STEM, Customer Support, ESG) with 1 click!">i</span></span></label>
+            <div style="display:flex; gap:8px;">
+              <select id="catalogSelect"></select>
+              <button id="prepDomainBtn" class="btn" onclick="prepareSelectedDomain()" style="white-space:nowrap;">Download &amp; Prepare</button>
+            </div>
+            <div id="prepStatus" style="font-size:12px; color:var(--muted); margin-top:6px;"></div>
           </div>
           <div id="dsStats" class="stat-grid"></div>
           <div id="dsSample"></div>
@@ -385,6 +393,13 @@ What gas do plants absorb during photosynthesis?
       document.getElementById('ragDataset').innerHTML = evalDsOpts;
       document.getElementById('ckptName').value = (document.getElementById('trainDataset').value || 'finance') + '_ckpt.pt';
 
+      if (data.catalog) {
+        const catOpts = data.catalog.map(c =>
+          `<option value="${c.id}">[${c.category}] ${c.label}${c.prepared ? ' ✓' : ''}</option>`
+        ).join('');
+        document.getElementById('catalogSelect').innerHTML = catOpts;
+      }
+
       const ckptOpts = data.checkpoints.length
         ? data.checkpoints.map(c => `<option value="${c}">${c}</option>`).join('')
         : '<option value="sciq_ckpt.pt">No checkpoints yet — train one in Tab 2</option>';
@@ -405,6 +420,31 @@ What gas do plants absorb during photosynthesis?
         document.getElementById('halCkpt').value = 'sciq_ckpt.pt';
       }
       loadDatasetInfo();
+    }
+
+    async function prepareSelectedDomain() {
+      const domainId = document.getElementById('catalogSelect').value;
+      const btn = document.getElementById('prepDomainBtn');
+      const st = document.getElementById('prepStatus');
+      btn.disabled = true;
+      st.textContent = `Downloading and tokenizing "${domainId}" from Hugging Face...`;
+      try {
+        const res = await fetch('/api/dataset/prepare', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({domain_id: domainId})
+        });
+        const d = await res.json();
+        if (!res.ok) {
+          st.textContent = 'Error: ' + (d.detail || 'Failed');
+          return;
+        }
+        st.textContent = `Ready! ${d.meta.train_tokens.toLocaleString()} train tokens prepared for ${domainId}.`;
+        await loadSystem();
+        document.getElementById('dsSelect').value = domainId;
+        loadDatasetInfo();
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     async function loadDatasetInfo() {

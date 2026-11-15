@@ -37,6 +37,10 @@ rag_mod = importlib.import_module("09_rag_retriever")
 load_or_build_index = rag_mod.load_or_build_index
 RAG_INDEXES: dict = {}
 
+prep_mod = importlib.import_module("06_prepare_hf_dataset")
+prepare_catalog_domain = prep_mod.prepare_catalog_domain
+from domain_catalog import DOMAIN_CATALOG
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 CKPT_DIR = BASE_DIR / "checkpoints"
@@ -122,10 +126,11 @@ class RagReq(BaseModel):
 
 
 def _get_dataset_dir(name: str) -> Path:
-    if name in ("sciq", "finance", "healthcare", "legal"):
-        return DATA_DIR / name
     if name == "shakespeare":
         return DATA_DIR
+    candidate = DATA_DIR / name
+    if candidate.exists() or name in DOMAIN_CATALOG:
+        return candidate
     raise HTTPException(status_code=404, detail=f"Unknown dataset: {name}")
 
 
@@ -157,16 +162,18 @@ def system_info() -> dict:
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024 ** 3), 2) if cuda_ok else 0
 
     datasets = []
-    for ds_id, label in [
-        ("finance", "Finance — SEC 10-K Filings (virattt/financial-qa-10K)"),
-        ("healthcare", "Healthcare — PubMed Biomedical Q&A (qiaojin/PubMedQA)"),
-        ("legal", "Legal — SEC Material Contracts (lex_glue/ledgar)"),
-        ("sciq", "Science Q&A (allenai/sciq)"),
-    ]:
-        if (DATA_DIR / ds_id / "meta.json").exists():
-            datasets.append({"id": ds_id, "label": label})
+    for ds_dir in sorted(DATA_DIR.iterdir()):
+        if ds_dir.is_dir() and (ds_dir / "meta.json").exists():
+            m = json.loads((ds_dir / "meta.json").read_text(encoding="utf-8"))
+            datasets.append({"id": ds_dir.name, "label": f"{ds_dir.name.upper()} — {m.get('domain', ds_dir.name)}"})
     if (DATA_DIR / "meta.json").exists():
         datasets.append({"id": "shakespeare", "label": "TinyShakespeare"})
+
+    prepared_ids = {d["id"] for d in datasets}
+    catalog = [
+        {"id": k, "category": v["category"], "label": v["label"], "prepared": k in prepared_ids}
+        for k, v in DOMAIN_CATALOG.items()
+    ]
 
     CKPT_DIR.mkdir(parents=True, exist_ok=True)
     ckpts = sorted([p.name for p in CKPT_DIR.glob("*.pt")])
@@ -177,6 +184,7 @@ def system_info() -> dict:
         "vram_gb": vram_gb,
         "torch_version": torch.__version__,
         "datasets": datasets,
+        "catalog": catalog,
         "checkpoints": ckpts,
     }
 
@@ -193,6 +201,19 @@ def tokenize_text(req: TokenizeReq) -> dict:
         "chars_per_token": chars_per_tok,
         "tokens": tokens,
     }
+
+
+class PrepareReq(BaseModel):
+    domain_id: str
+
+
+@app.post("/api/dataset/prepare")
+def prepare_dataset_endpoint(req: PrepareReq) -> dict:
+    try:
+        info = prepare_catalog_domain(req.domain_id)
+        return {"ok": True, "meta": info}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/dataset/{name}")
