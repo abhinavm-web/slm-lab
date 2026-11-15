@@ -30,6 +30,9 @@ model_mod = importlib.import_module("02_model")
 GPT = model_mod.GPT
 GPTConfig = model_mod.GPTConfig
 
+eval_mod = importlib.import_module("08_eval_suite")
+evaluate_checkpoint = eval_mod.evaluate_checkpoint
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 CKPT_DIR = BASE_DIR / "checkpoints"
@@ -97,6 +100,12 @@ class HallucinationReq(BaseModel):
     temperature: float = 0.2
     max_tokens: int = 45
     expect_abstain: bool = False
+
+
+class EvalReq(BaseModel):
+    ckpt_name: str = "sciq_abstain_dpo.pt"
+    compare_ckpt: str = ""
+    n_samples: int = Field(default=25, ge=5, le=100)
 
 
 def _get_dataset_dir(name: str) -> Path:
@@ -511,6 +520,15 @@ def hallucination_test(req: HallucinationReq) -> dict:
         "closed_book": {**closed_res, "diagnosis": diagnose(closed_res)},
         "grounded": ({**grounded_res, "diagnosis": diagnose(grounded_res)} if grounded_res else None),
     }
+
+
+@app.post("/api/eval")
+def run_eval(req: EvalReq) -> dict:
+    primary = evaluate_checkpoint(CKPT_DIR / req.ckpt_name, n_samples=req.n_samples)
+    baseline = None
+    if req.compare_ckpt and req.compare_ckpt != req.ckpt_name:
+        baseline = evaluate_checkpoint(CKPT_DIR / req.compare_ckpt, n_samples=req.n_samples)
+    return {"primary": primary, "baseline": baseline}
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
