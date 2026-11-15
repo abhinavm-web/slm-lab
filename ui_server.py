@@ -35,7 +35,7 @@ evaluate_checkpoint = eval_mod.evaluate_checkpoint
 
 rag_mod = importlib.import_module("09_rag_retriever")
 load_or_build_index = rag_mod.load_or_build_index
-RAG_INDEX = None
+RAG_INDEXES: dict = {}
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -109,19 +109,21 @@ class HallucinationReq(BaseModel):
 class EvalReq(BaseModel):
     ckpt_name: str = "sciq_abstain_dpo.pt"
     compare_ckpt: str = ""
+    dataset: str = "sciq"
     n_samples: int = Field(default=25, ge=5, le=100)
 
 
 class RagReq(BaseModel):
     ckpt_name: str = "sciq_ckpt.pt"
+    dataset: str = "sciq"
     query: str
     top_k: int = Field(default=3, ge=1, le=5)
     temperature: float = 0.2
 
 
 def _get_dataset_dir(name: str) -> Path:
-    if name == "sciq":
-        return DATA_DIR / "sciq"
+    if name in ("sciq", "finance", "healthcare", "legal"):
+        return DATA_DIR / name
     if name == "shakespeare":
         return DATA_DIR
     raise HTTPException(status_code=404, detail=f"Unknown dataset: {name}")
@@ -155,8 +157,14 @@ def system_info() -> dict:
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024 ** 3), 2) if cuda_ok else 0
 
     datasets = []
-    if (DATA_DIR / "sciq" / "meta.json").exists():
-        datasets.append({"id": "sciq", "label": "Science Q&A (allenai/sciq)"})
+    for ds_id, label in [
+        ("finance", "Finance — SEC 10-K Filings (virattt/financial-qa-10K)"),
+        ("healthcare", "Healthcare — PubMed Biomedical Q&A (qiaojin/PubMedQA)"),
+        ("legal", "Legal — SEC Material Contracts (lex_glue/ledgar)"),
+        ("sciq", "Science Q&A (allenai/sciq)"),
+    ]:
+        if (DATA_DIR / ds_id / "meta.json").exists():
+            datasets.append({"id": ds_id, "label": label})
     if (DATA_DIR / "meta.json").exists():
         datasets.append({"id": "shakespeare", "label": "TinyShakespeare"})
 
@@ -535,23 +543,28 @@ def hallucination_test(req: HallucinationReq) -> dict:
 
 @app.post("/api/eval")
 def run_eval(req: EvalReq) -> dict:
-    primary = evaluate_checkpoint(CKPT_DIR / req.ckpt_name, n_samples=req.n_samples)
+    primary = evaluate_checkpoint(CKPT_DIR / req.ckpt_name, n_samples=req.n_samples, dataset=req.dataset)
     baseline = None
     if req.compare_ckpt and req.compare_ckpt != req.ckpt_name:
-        baseline = evaluate_checkpoint(CKPT_DIR / req.compare_ckpt, n_samples=req.n_samples)
+        baseline = evaluate_checkpoint(CKPT_DIR / req.compare_ckpt, n_samples=req.n_samples, dataset=req.dataset)
     return {"primary": primary, "baseline": baseline}
 
 
 @app.post("/api/rag")
 def run_rag(req: RagReq) -> dict:
-    global RAG_INDEX
-    if RAG_INDEX is None:
-        RAG_INDEX = load_or_build_index()
-    hits = RAG_INDEX.search(req.query, top_k=req.top_k)
+    if req.dataset not in RAG_INDEXES:
+        RAG_INDEXES[req.dataset] = load_or_build_index(req.dataset)
+    idx = RAG_INDEXES[req.dataset]
+    hits = idx.search(req.query, top_k=req.top_k)
     top_ctx = hits[0]["text"] if hits else ""
-    prompt = f"### Science Context:\n{top_ctx}\n\n### Question:\n{req.query.strip()}\n\n### Answer:\n"
+    ctx_hdr = {
+        "finance": "### Context:",
+        "healthcare": "### Medical Abstract:",
+        "legal": "### Contract Clause:",
+    }.get(req.dataset, "### Science Context:")
+    prompt = f"{ctx_hdr}\n{top_ctx}\n\n### Question:\n{req.query.strip()}\n\n### Answer:\n"
     gen = _generate_with_confidence(req.ckpt_name, prompt, 45, req.temperature, 20, 0.95)
-    return {"hits": hits, "generation": gen, "indexed_docs": RAG_INDEX.n_docs}
+    return {"hits": hits, "generation": gen, "indexed_docs": idx.n_docs}
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

@@ -1,0 +1,11 @@
+{
+  "dataset_name": "qiaojin/PubMedQA",
+  "domain": "Healthcare (PubMed Biomedical Research Q&A)",
+  "tokenizer_type": "gpt2",
+  "vocab_size": 50257,
+  "eot_token": 50256,
+  "train_examples": 850,
+  "val_examples": 150,
+  "train_tokens": 285032,
+  "val_tokens": 50274
+}

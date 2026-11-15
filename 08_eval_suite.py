@@ -68,11 +68,12 @@ def _greedy_generate_with_conf(
     return text, avg_conf
 
 
-def evaluate_checkpoint(ckpt_path: Path, n_samples: int = 25) -> dict:
+def evaluate_checkpoint(ckpt_path: Path, n_samples: int = 25, dataset: str = "sciq") -> dict:
+    eval_path = BASE_DIR / "data" / dataset / "eval_samples.json"
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-    if not EVAL_PATH.exists():
-        raise FileNotFoundError(f"Eval dataset not found: {EVAL_PATH}")
+    if not eval_path.exists():
+        raise FileNotFoundError(f"Eval dataset not found: {eval_path}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
@@ -82,7 +83,7 @@ def evaluate_checkpoint(ckpt_path: Path, n_samples: int = 25) -> dict:
     model.eval()
 
     enc = tiktoken.get_encoding("gpt2")
-    samples = json.loads(EVAL_PATH.read_text(encoding="utf-8"))[:n_samples]
+    samples = json.loads(eval_path.read_text(encoding="utf-8"))[:n_samples]
 
     grounded_ok = 0
     closed_ok = 0

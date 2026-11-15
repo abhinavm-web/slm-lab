@@ -1,0 +1,11 @@
+{
+  "dataset_name": "virattt/financial-qa-10K",
+  "domain": "Finance (SEC 10-K Filings Q&A)",
+  "tokenizer_type": "gpt2",
+  "vocab_size": 50257,
+  "eot_token": 50256,
+  "train_examples": 6300,
+  "val_examples": 700,
+  "train_tokens": 703385,
+  "val_tokens": 73294
+}

@@ -1,0 +1,11 @@
+{
+  "dataset_name": "coastalcph/lex_glue (ledgar)",
+  "domain": "Legal (SEC Material Contract Clauses)",
+  "tokenizer_type": "gpt2",
+  "vocab_size": 50257,
+  "eot_token": 50256,
+  "train_examples": 6000,
+  "val_examples": 800,
+  "train_tokens": 880840,
+  "val_tokens": 111584
+}

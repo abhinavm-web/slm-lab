@@ -70,9 +70,10 @@ class SimpleRAGIndex:
         ]
 
 
-def load_or_build_index() -> SimpleRAGIndex:
-    if INDEX_PATH.exists():
-        docs = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
+def load_or_build_index(dataset: str = "sciq") -> SimpleRAGIndex:
+    idx_path = BASE_DIR / "data" / dataset / "rag_docs.json"
+    if idx_path.exists():
+        docs = json.loads(idx_path.read_text(encoding="utf-8"))
         return SimpleRAGIndex(docs)
 
     ds = load_dataset("allenai/sciq", split="train")
@@ -83,8 +84,8 @@ def load_or_build_index() -> SimpleRAGIndex:
         if sup and sup not in seen:
             seen.add(sup)
             docs.append(sup)
-    INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    INDEX_PATH.write_text(json.dumps(docs), encoding="utf-8")
+    idx_path.parent.mkdir(parents=True, exist_ok=True)
+    idx_path.write_text(json.dumps(docs), encoding="utf-8")
     return SimpleRAGIndex(docs)
 
 

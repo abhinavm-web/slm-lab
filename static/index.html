@@ -170,7 +170,7 @@
           <div class="grid-2">
             <div class="form-row">
               <label><span class="label-left">Dataset <span class="info-icon" data-tip="Which textbook the model will study during training.">i</span></span></label>
-              <select id="trainDataset"></select>
+              <select id="trainDataset" onchange="document.getElementById('ckptName').value = this.value + '_ckpt.pt'"></select>
             </div>
             <div class="form-row">
               <label><span class="label-left">Save Checkpoint As <span class="info-icon" data-tip="A checkpoint is a 'save file' of the AI's brain weights so you can test it later without retraining.">i</span></span></label>
@@ -305,6 +305,10 @@ What gas do plants absorb during photosynthesis?
         <h2>Automated Evals &amp; Calibration Benchmark <span class="info-icon" data-tip="Instead of guessing whether a model got smarter by testing 1 or 2 prompts, 'Evals' automatically grade the AI on dozens of unseen questions — measuring accuracy, hallucination rate, abstention, and whether its confidence matches reality.">i</span></h2>
         <div class="grid-2">
           <div class="form-row">
+            <label><span class="label-left">Domain Benchmark <span class="info-icon" data-tip="Pick which industry domain's held-out questions to evaluate against (Finance 10-K, Healthcare PubMed, Legal Contracts, or Science).">i</span></span></label>
+            <select id="evalDataset"></select>
+          </div>
+          <div class="form-row">
             <label><span class="label-left">Primary Checkpoint <span class="info-icon" data-tip="The model you want to grade (e.g., sciq_abstain_dpo.pt).">i</span></span></label>
             <select id="evalCkpt"></select>
           </div>
@@ -330,7 +334,11 @@ What gas do plants absorb during photosynthesis?
         <div class="grid-2">
           <div>
             <div class="form-row">
-              <label><span class="label-left">Checkpoint <span class="info-icon" data-tip="Try sciq_abstain_dpo.pt — if the retriever finds an irrelevant passage, the DPO model can even say 'I don't know'!">i</span></span></label>
+              <label><span class="label-left">Domain Knowledge Base <span class="info-icon" data-tip="Pick which industry corpus to search (Finance 10-K filings, Healthcare PubMed abstracts, Legal contract clauses, or Science).">i</span></span></label>
+              <select id="ragDataset"></select>
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Checkpoint <span class="info-icon" data-tip="Try a checkpoint trained on the matching domain (or sciq_abstain_dpo.pt to see abstention when passages don't match).">i</span></span></label>
               <select id="ragCkpt"></select>
             </div>
             <div class="form-row">
@@ -372,6 +380,10 @@ What gas do plants absorb during photosynthesis?
       const dsOpts = data.datasets.map(d => `<option value="${d.id}">${d.label}</option>`).join('');
       document.getElementById('dsSelect').innerHTML = dsOpts;
       document.getElementById('trainDataset').innerHTML = dsOpts;
+      const evalDsOpts = data.datasets.filter(d => d.id !== 'shakespeare').map(d => `<option value="${d.id}">${d.label}</option>`).join('');
+      document.getElementById('evalDataset').innerHTML = evalDsOpts;
+      document.getElementById('ragDataset').innerHTML = evalDsOpts;
+      document.getElementById('ckptName').value = (document.getElementById('trainDataset').value || 'finance') + '_ckpt.pt';
 
       const ckptOpts = data.checkpoints.length
         ? data.checkpoints.map(c => `<option value="${c}">${c}</option>`).join('')
@@ -661,6 +673,7 @@ What gas do plants absorb during photosynthesis?
           body: JSON.stringify({
             ckpt_name: document.getElementById('evalCkpt').value,
             compare_ckpt: document.getElementById('evalCompareCkpt').value,
+            dataset: document.getElementById('evalDataset').value,
             n_samples: parseInt(document.getElementById('evalN').value, 10) || 25,
           })
         });
@@ -710,6 +723,7 @@ What gas do plants absorb during photosynthesis?
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           ckpt_name: document.getElementById('ragCkpt').value,
+          dataset: document.getElementById('ragDataset').value,
           query: document.getElementById('ragQuery').value,
           top_k: 3,
         })
