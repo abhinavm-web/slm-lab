@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SLM Learning & Hallucination Lab</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-2: #0b1220;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --purple: #a855f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5;
+    }
+    header {
+      background: var(--panel-2); border-bottom: 1px solid var(--border);
+      padding: 14px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .brand h1 { margin: 0; font-size: 18px; font-weight: 700; color: var(--accent); }
+    .brand p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+    .hw-badge {
+      background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #86efac; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    nav {
+      display: flex; gap: 8px; padding: 12px 24px; background: var(--panel);
+      border-bottom: 1px solid var(--border); flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: transparent; color: var(--muted); border: 1px solid var(--border);
+      padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;
+    }
+    .tab-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+    main { max-width: 1200px; margin: 24px auto; padding: 0 20px 60px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+      margin-bottom: 18px;
+    }
+    .card h2 {
+      margin: 0 0 12px; font-size: 16px; display: flex; align-items: center; gap: 8px;
+    }
+    label {
+      display: flex; align-items: center; justify-content: space-between; font-size: 13px;
+      color: var(--muted); margin-bottom: 6px; font-weight: 500;
+    }
+    .label-left { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    .form-row { margin-bottom: 14px; }
+    .btn {
+      background: var(--accent); color: #0f172a; border: none; padding: 10px 18px;
+      border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-danger { background: var(--red); color: white; }
+    .btn-secondary { background: #334155; color: var(--text); }
+    .info-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 17px; height: 17px; border-radius: 50%; background: rgba(56, 189, 248, 0.2);
+      color: var(--accent); font-size: 11px; font-weight: 700; cursor: help; position: relative;
+      border: 1px solid rgba(56, 189, 248, 0.45); flex-shrink: 0;
+    }
+    .info-icon:hover::after, .info-icon:focus::after {
+      content: attr(data-tip);
+      position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+      width: 270px; background: #020617; color: #e2e8f0; border: 1px solid var(--accent);
+      border-radius: 8px; padding: 10px 12px; font-size: 12px; font-weight: 400;
+      line-height: 1.45; z-index: 999; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      white-space: normal; pointer-events: none;
+    }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+    .stat-box {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    }
+    .stat-box .k { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+    .stat-box .v { font-size: 18px; font-weight: 700; margin-top: 4px; color: var(--text); }
+    .tok-chip {
+      display: inline-block; padding: 3px 7px; margin: 3px; border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+      background: rgba(56, 189, 248, 0.14); border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .tok-id { color: var(--muted); font-size: 10px; margin-left: 4px; }
+    .conf-tok {
+      display: inline-block; padding: 2px 4px; margin: 1px; border-radius: 4px;
+      font-family: ui-monospace, monospace; font-size: 13px; cursor: pointer; position: relative;
+    }
+    .conf-high { background: rgba(34, 197, 94, 0.22); border-bottom: 2px solid var(--green); }
+    .conf-med  { background: rgba(234, 179, 8, 0.22); border-bottom: 2px solid var(--yellow); }
+    .conf-low  { background: rgba(239, 68, 68, 0.24); border-bottom: 2px solid var(--red); }
+    .alert {
+      padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px;
+      background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .alert-warn { background: rgba(234, 179, 8, 0.14); border-color: rgba(234, 179, 8, 0.45); color: #fde047; }
+    .alert-bad { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+    .alert-good { background: rgba(34, 197, 94, 0.14); border-color: rgba(34, 197, 94, 0.45); color: #86efac; }
+    svg.chart { width: 100%; height: 240px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border); }
+    pre {
+      background: var(--panel-2); padding: 12px; border-radius: 8px; border: 1px solid var(--border);
+      overflow-x: auto; font-size: 12px; white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Small Language Model (SLM) Learning & Hallucination Lab</h1>
+      <p>Interactive from-scratch training, token confidence, and hallucination explorer — hover any <span class="info-icon" data-tip="Info icons explain every AI concept in plain, high-school-level English!">i</span> to learn.</p>
+    </div>
+    <div id="hwBadge" class="hw-badge">Checking GPU...</div>
+  </header>
+
+  <nav>
+    <button class="tab-btn active" onclick="showTab('data', this)">1. Data &amp; Tokenizer</button>
+    <button class="tab-btn" onclick="showTab('train', this)">2. Train Model (Live GPU)</button>
+    <button class="tab-btn" onclick="showTab('test', this)">3. Test &amp; Token Confidence</button>
+    <button class="tab-btn" onclick="showTab('hallucination', this)">4. Hallucination Lab</button>
+  </nav>
+
+  <main>
+    <!-- TAB 1: DATA & TOKENIZER -->
+    <section id="tab-data" class="tab-panel active">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Domain Dataset Inspector <span class="info-icon" data-tip="A dataset is the textbook the AI reads to learn. A 'domain' dataset focuses on one subject (like Science) so even a small model can learn useful patterns.">i</span></h2>
+          <div class="form-row">
+            <label><span class="label-left">Select Prepared Dataset <span class="info-icon" data-tip="Science Q&A (allenai/sciq) has 11,679 science textbook facts, questions, and verified answers — ideal for testing whether the model tells the truth or hallucinates.">i</span></span></label>
+            <select id="dsSelect" onchange="loadDatasetInfo()"></select>
+          </div>
+          <div id="dsStats" class="stat-grid"></div>
+          <div id="dsSample"></div>
+        </div>
+
+        <div class="card">
+          <h2>Interactive Tokenizer Playground <span class="info-icon" data-tip="Computers can't read words directly — they turn text into numbered puzzle pieces called 'tokens'. Common words are 1 token; rare words get split into smaller pieces.">i</span></h2>
+          <div class="form-row">
+            <label><span class="label-left">Type any sentence to see how the AI reads it <span class="info-icon" data-tip="BPE (Byte-Pair Encoding) is the exact trick GPT uses. Fewer tokens = faster and cheaper AI!">i</span></span></label>
+            <textarea id="tokInput" oninput="runTokenize()">Photosynthesis converts sunlight into chemical energy inside chloroplasts.</textarea>
+          </div>
+          <div id="tokStats" class="stat-grid"></div>
+          <div id="tokChips"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: TRAIN MODEL -->
+    <section id="tab-train" class="tab-panel">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Model Brain &amp; Training Controls <span class="info-icon" data-tip="Here you design the size of the AI's brain and how it studies. Bigger brains learn more, but need more GPU memory (VRAM) and time.">i</span></h2>
+          <div class="grid-2">
+            <div class="form-row">
+              <label><span class="label-left">Dataset <span class="info-icon" data-tip="Which textbook the model will study during training.">i</span></span></label>
+              <select id="trainDataset"></select>
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Save Checkpoint As <span class="info-icon" data-tip="A checkpoint is a 'save file' of the AI's brain weights so you can test it later without retraining.">i</span></span></label>
+              <input type="text" id="ckptName" value="sciq_ckpt.pt" />
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Layers (n_layer) <span class="info-icon" data-tip="How many thinking stages are stacked on top of each other. More layers = deeper reasoning, slower training.">i</span></span></label>
+              <input type="number" id="nLayer" value="6" min="2" max="12" onchange="updateEstimate()" />
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Attention Heads <span class="info-icon" data-tip="How many spotlights the AI uses at once to connect words (e.g., matching 'it' back to 'chloroplast').">i</span></span></label>
+              <input type="number" id="nHead" value="6" min="2" max="12" onchange="updateEstimate()" />
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Brain Width (n_embd) <span class="info-icon" data-tip="How many numbers represent each token's meaning. Must be divisible by Attention Heads.">i</span></span></label>
+              <input type="number" id="nEmbd" value="384" step="64" min="128" max="768" onchange="updateEstimate()" />
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Context Window <span class="info-icon" data-tip="The AI's short-term memory: max tokens it can look at at once. Doubling this uses 4x more attention memory!">i</span></span></label>
+              <input type="number" id="blockSize" value="256" step="64" min="64" max="512" onchange="updateEstimate()" />
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Training Steps <span class="info-icon" data-tip="How many study rounds (batches) the AI completes. More steps = better learning, up to the point where it starts memorizing (overfitting).">i</span></span></label>
+              <input type="number" id="maxIters" value="400" step="100" min="50" max="3000" />
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Learning Rate <span class="info-icon" data-tip="How big a step the AI takes when fixing a mistake. Too high = chaotic; too low = learns too slowly.">i</span></span></label>
+              <input type="number" id="learningRate" value="0.0006" step="0.0001" />
+            </div>
+          </div>
+
+          <div id="estStats" class="stat-grid"></div>
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button id="startTrainBtn" class="btn" onclick="startTraining()">Start GPU Training</button>
+            <button id="stopTrainBtn" class="btn btn-danger" onclick="stopTraining()" disabled>Stop</button>
+          </div>
+          <div id="trainMsg" class="alert" style="margin-top:12px;">Ready to train on your RTX 4060.</div>
+        </div>
+
+        <div class="card">
+          <h2>Live Learning Curve (Loss) <span class="info-icon" data-tip="Loss measures how wrong the AI's guesses are (lower = smarter). Watch 'Train Loss' (study guide) vs 'Val Loss' (pop quiz on unseen questions). If Train drops while Val goes UP, the model is memorizing (overfitting)!">i</span></h2>
+          <svg id="lossChart" class="chart" viewBox="0 0 600 240"></svg>
+          <div id="liveStats" class="stat-grid"></div>
+          <div id="overfitAlert"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: TEST & TOKEN CONFIDENCE -->
+    <section id="tab-test" class="tab-panel">
+      <div class="card">
+        <h2>Test Your Model &amp; Inspect Token Confidence <span class="info-icon" data-tip="Every word the AI writes is chosen by rolling weighted dice. Green = the AI was very sure (>50%). Yellow = unsure (20-50%). Red = guessing (<20%). Hover any word to see its runner-up choices!">i</span></h2>
+        <div class="grid-2">
+          <div>
+            <div class="form-row">
+              <label><span class="label-left">Checkpoint <span class="info-icon" data-tip="Pick which trained brain file to test.">i</span></span></label>
+              <select id="genCkpt"></select>
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Prompt <span class="info-icon" data-tip="The starting text you give the AI. Try '### Question:\nWhat gas do plants absorb?\n\n### Answer:\n'">i</span></span></label>
+              <textarea id="genPrompt">### Question:
+What gas do plants absorb during photosynthesis?
+
+### Answer:
+</textarea>
+            </div>
+            <div class="grid-2">
+              <div class="form-row">
+                <label><span class="label-left">Temperature <span class="info-icon" data-tip="Creativity knob: 0.1 = strict & predictable (best for facts); 1.0+ = wild & creative (more hallucinations).">i</span></span></label>
+                <input type="number" id="genTemp" value="0.3" step="0.1" min="0" max="1.5" />
+              </div>
+              <div class="form-row">
+                <label><span class="label-left">Max New Tokens <span class="info-icon" data-tip="Maximum length of the AI's reply in tokens.">i</span></span></label>
+                <input type="number" id="genMaxTok" value="60" min="10" max="200" />
+              </div>
+            </div>
+            <button class="btn" onclick="runGenerate()">Generate &amp; Inspect Confidence</button>
+          </div>
+          <div>
+            <label><span class="label-left">Generated Output (Color = Model Confidence) <span class="info-icon" data-tip="Green = >50% sure, Yellow = 20-50%, Red = <20% guessing. Hover a token to see top-3 alternatives!">i</span></span></label>
+            <div id="genOut" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:14px; min-height:150px;"></div>
+            <div id="genMeta" class="stat-grid"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: HALLUCINATION LAB -->
+    <section id="tab-hallucination" class="tab-panel">
+      <div class="card">
+        <h2>Hallucination Lab: Closed-Book vs. Grounded (RAG) <span class="info-icon" data-tip="A hallucination is when an AI invents a fake or wrong answer while sounding completely confident. Here you can compare 'Closed-Book' (guessing from memory) vs 'Grounded' (reading the science textbook passage first — just like RAG in real companies!).">i</span></h2>
+        <div class="grid-2">
+          <div>
+            <div class="form-row">
+              <label><span class="label-left">Checkpoint <span class="info-icon" data-tip="Use your Science-trained checkpoint (e.g. sciq_ckpt.pt) for best results.">i</span></span></label>
+              <select id="halCkpt"></select>
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Pick an Unseen Science Quiz Question <span class="info-icon" data-tip="These 30 questions come from the validation split — the model NEVER saw them during training!">i</span></span></label>
+              <select id="halSampleSelect" onchange="applyHalSample()"></select>
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Question <span class="info-icon" data-tip="You can also type a trick question (e.g., 'What is the boiling point of vibranium?') to watch the AI hallucinate!">i</span></span></label>
+              <input type="text" id="halQuestion" />
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Science Context (Textbook Passage for Grounded / RAG mode) <span class="info-icon" data-tip="In real companies, RAG (Retrieval-Augmented Generation) pastes the relevant document right into the prompt so the AI doesn't have to guess from memory.">i</span></span></label>
+              <textarea id="halSupport"></textarea>
+            </div>
+            <div class="form-row">
+              <label><span class="label-left">Verified Ground-Truth Answer <span class="info-icon" data-tip="The real answer we check the AI against.">i</span></span></label>
+              <input type="text" id="halTruth" />
+            </div>
+            <button class="btn" onclick="runHallucinationTest()">Run Closed-Book vs. Grounded Test</button>
+          </div>
+          <div>
+            <h3>1. Closed-Book (Memory Only — High Hallucination Risk)</h3>
+            <div id="halClosed" class="card" style="background:var(--panel-2);">Run a test to see results.</div>
+            <h3>2. Grounded / RAG-Style (With Textbook Context)</h3>
+            <div id="halGrounded" class="card" style="background:var(--panel-2);">Run a test to see results.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let EVAL_SAMPLES = [];
+    let pollTimer = null;
+
+    function showTab(name, btn) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    async function loadSystem() {
+      const res = await fetch('/api/system');
+      const data = await res.json();
+      const badge = document.getElementById('hwBadge');
+      badge.textContent = data.cuda_available
+        ? `GPU Active: ${data.gpu_name} (${data.vram_gb} GB VRAM)`
+        : 'CPU Mode (No CUDA)';
+
+      const dsOpts = data.datasets.map(d => `<option value="${d.id}">${d.label}</option>`).join('');
+      document.getElementById('dsSelect').innerHTML = dsOpts;
+      document.getElementById('trainDataset').innerHTML = dsOpts;
+
+      const ckptOpts = data.checkpoints.length
+        ? data.checkpoints.map(c => `<option value="${c}">${c}</option>`).join('')
+        : '<option value="sciq_ckpt.pt">No checkpoints yet — train one in Tab 2</option>';
+      document.getElementById('genCkpt').innerHTML = ckptOpts;
+      document.getElementById('halCkpt').innerHTML = ckptOpts;
+
+      if (data.checkpoints.includes('sciq_ckpt.pt')) {
+        document.getElementById('genCkpt').value = 'sciq_ckpt.pt';
+        document.getElementById('halCkpt').value = 'sciq_ckpt.pt';
+      }
+      loadDatasetInfo();
+    }
+
+    async function loadDatasetInfo() {
+      const name = document.getElementById('dsSelect').value;
+      if (!name) return;
+      const res = await fetch('/api/dataset/' + name);
+      const data = await res.json();
+      const m = data.meta;
+      document.getElementById('dsStats').innerHTML = `
+        <div class="stat-box"><div class="k">Domain</div><div class="v" style="font-size:13px">${m.domain || name}</div></div>
+        <div class="stat-box"><div class="k">Train Tokens</div><div class="v">${(m.train_tokens || 0).toLocaleString()}</div></div>
+        <div class="stat-box"><div class="k">Val Tokens</div><div class="v">${(m.val_tokens || 0).toLocaleString()}</div></div>
+        <div class="stat-box"><div class="k">Vocab Size</div><div class="v">${(m.vocab_size || 0).toLocaleString()}</div></div>
+      `;
+      EVAL_SAMPLES = data.eval_samples || [];
+      const halSel = document.getElementById('halSampleSelect');
+      halSel.innerHTML = EVAL_SAMPLES.map((s, i) => `<option value="${i}">#${i+1}: ${s.question.slice(0, 70)}...</option>`).join('');
+      if (EVAL_SAMPLES.length) {
+        applyHalSample();
+        const s = EVAL_SAMPLES[0];
+        document.getElementById('dsSample').innerHTML = `
+          <label>Sample Training Record (Held-out Validation)</label>
+          <pre><b>Context:</b> ${s.support}\n\n<b>Question:</b> ${s.question}\n<b>Answer:</b> ${s.correct_answer}\n<b>Wrong Distractors:</b> ${s.distractors.join(' | ')}</pre>
+        `;
+      } else {
+        document.getElementById('dsSample').innerHTML = '';
+      }
+    }
+
+    function applyHalSample() {
+      const idx = document.getElementById('halSampleSelect').value;
+      const s = EVAL_SAMPLES[idx];
+      if (!s) return;
+      document.getElementById('halQuestion').value = s.question;
+      document.getElementById('halSupport').value = s.support;
+      document.getElementById('halTruth').value = s.correct_answer;
+    }
+
+    async function runTokenize() {
+      const text = document.getElementById('tokInput').value;
+      const res = await fetch('/api/tokenize', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text})
+      });
+      const data = await res.json();
+      document.getElementById('tokStats').innerHTML = `
+        <div class="stat-box"><div class="k">Characters</div><div class="v">${data.char_count}</div></div>
+        <div class="stat-box"><div class="k">Tokens</div><div class="v">${data.token_count}</div></div>
+        <div class="stat-box"><div class="k">Chars / Token</div><div class="v">${data.chars_per_token}</div></div>
+      `;
+      document.getElementById('tokChips').innerHTML = data.tokens.map(t =>
+        `<span class="tok-chip">${escapeHtml(t.text).replace(/ /g, '&nbsp;')}<span class="tok-id">${t.id}</span></span>`
+      ).join('');
+    }
+
+    async function updateEstimate() {
+      const payload = {
+        n_layer: +document.getElementById('nLayer').value,
+        n_head: +document.getElementById('nHead').value,
+        n_embd: +document.getElementById('nEmbd').value,
+        block_size: +document.getElementById('blockSize').value,
+      };
+      const res = await fetch('/api/estimate', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      document.getElementById('estStats').innerHTML = `
+        <div class="stat-box"><div class="k">Total Parameters</div><div class="v">${d.total_params_m}M</div></div>
+        <div class="stat-box"><div class="k">Embeddings</div><div class="v">${d.embedding_params_m}M</div></div>
+        <div class="stat-box"><div class="k">Thinking Layers</div><div class="v">${d.block_params_m}M</div></div>
+        <div class="stat-box"><div class="k">Est. Static VRAM</div><div class="v">${d.est_static_vram_mb} MB</div></div>
+      `;
+    }
+
+    async function startTraining() {
+      const maxIters = parseInt(document.getElementById('maxIters').value, 10);
+      const lr = parseFloat(document.getElementById('learningRate').value);
+      const nLayer = parseInt(document.getElementById('nLayer').value, 10);
+      const nHead = parseInt(document.getElementById('nHead').value, 10);
+      const nEmbd = parseInt(document.getElementById('nEmbd').value, 10);
+      const blockSize = parseInt(document.getElementById('blockSize').value, 10);
+
+      if (!Number.isFinite(maxIters) || maxIters < 10) {
+        alert('Please enter a valid number of Training Steps (at least 10, e.g. 600).');
+        return;
+      }
+      if (!Number.isFinite(lr) || lr <= 0) {
+        alert('Please enter a valid Learning Rate (e.g. 0.0006).');
+        return;
+      }
+      if (nEmbd % nHead !== 0) {
+        alert('Brain Width (n_embd) must be divisible by Attention Heads.');
+        return;
+      }
+
+      const payload = {
+        dataset: document.getElementById('trainDataset').value,
+        ckpt_name: document.getElementById('ckptName').value.trim() || 'sciq_ckpt.pt',
+        n_layer: nLayer,
+        n_head: nHead,
+        n_embd: nEmbd,
+        block_size: blockSize,
+        max_iters: maxIters,
+        learning_rate: lr,
+        eval_interval: Math.max(10, Math.floor(maxIters / 8)),
+      };
+      const res = await fetch('/api/train/start', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || 'Failed to start training');
+        return;
+      }
+      document.getElementById('startTrainBtn').disabled = true;
+      document.getElementById('stopTrainBtn').disabled = false;
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(pollTrainStatus, 1000);
+    }
+
+    async function stopTraining() {
+      await fetch('/api/train/stop', {method: 'POST'});
+    }
+
+    async function pollTrainStatus() {
+      const res = await fetch('/api/train/status');
+      const s = await res.json();
+      document.getElementById('trainMsg').textContent = `${s.message} (Step ${s.step}/${s.max_iters})`;
+
+      const last = s.history[s.history.length - 1];
+      if (last) {
+        document.getElementById('liveStats').innerHTML = `
+          <div class="stat-box"><div class="k">Train Loss</div><div class="v">${last.train_loss}</div></div>
+          <div class="stat-box"><div class="k">Val Loss (Best: ${s.best_val_loss})</div><div class="v">${last.val_loss}</div></div>
+          <div class="stat-box"><div class="k">Perplexity</div><div class="v">${last.val_ppl}</div></div>
+          <div class="stat-box"><div class="k">Speed / VRAM</div><div class="v" style="font-size:14px">${s.tok_per_sec.toLocaleString()} tok/s · ${last.vram_mb} MB</div></div>
+        `;
+        const overfit = (last.val_loss - last.train_loss) > 0.8;
+        document.getElementById('overfitAlert').innerHTML = overfit
+          ? `<div class="alert alert-warn">Overfitting watch: Train Loss (${last.train_loss}) is much lower than Val Loss (${last.val_loss}). The model is starting to memorize the study guide!</div>`
+          : `<div class="alert alert-good">Healthy generalization: Train and Validation loss are moving together.</div>`;
+        drawChart(s.history);
+      }
+
+      if (s.status !== 'running') {
+        clearInterval(pollTimer);
+        document.getElementById('startTrainBtn').disabled = false;
+        document.getElementById('stopTrainBtn').disabled = true;
+        loadSystem();
+      }
+    }
+
+    function drawChart(history) {
+      const svg = document.getElementById('lossChart');
+      if (!history.length) return;
+      const w = 600, h = 240, pad = 34;
+      const maxStep = Math.max(1, history[history.length - 1].step);
+      const allY = history.flatMap(p => [p.train_loss, p.val_loss]);
+      const minY = Math.max(0, Math.min(...allY) - 0.3);
+      const maxY = Math.max(...allY) + 0.3;
+
+      const sx = s => pad + (s / maxStep) * (w - pad * 2);
+      const sy = y => h - pad - ((y - minY) / Math.max(0.01, maxY - minY)) * (h - pad * 2);
+
+      const trainPts = history.map(p => `${sx(p.step)},${sy(p.train_loss)}`).join(' ');
+      const valPts = history.map(p => `${sx(p.step)},${sy(p.val_loss)}`).join(' ');
+
+      svg.innerHTML = `
+        <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#334155" />
+        <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="#334155" />
+        <polyline fill="none" stroke="#38bdf8" stroke-width="2.5" points="${trainPts}" />
+        <polyline fill="none" stroke="#a855f7" stroke-width="2.5" points="${valPts}" />
+        <text x="${pad+8}" y="20" fill="#38bdf8" font-size="12" font-weight="bold">● Train Loss</text>
+        <text x="${pad+105}" y="20" fill="#a855f7" font-size="12" font-weight="bold">● Val Loss</text>
+        <text x="6" y="${pad+4}" fill="#94a3b8" font-size="11">${maxY.toFixed(1)}</text>
+        <text x="6" y="${h-pad}" fill="#94a3b8" font-size="11">${minY.toFixed(1)}</text>
+      `;
+    }
+
+    function renderConfidenceTokens(tokens) {
+      return tokens.map(t => {
+        const cls = t.prob_pct >= 50 ? 'conf-high' : (t.prob_pct >= 20 ? 'conf-med' : 'conf-low');
+        const altStr = t.alternatives.map(a => `${a.token} (${a.prob}%)`).join(' | ');
+        return `<span class="conf-tok ${cls}" title="Chosen: ${t.prob_pct}% | Top-3: ${escapeHtml(altStr)}">${escapeHtml(t.token).replace(/\n/g, '<br>')}</span>`;
+      }).join('');
+    }
+
+    async function runGenerate() {
+      const payload = {
+        ckpt_name: document.getElementById('genCkpt').value,
+        prompt: document.getElementById('genPrompt').value,
+        temperature: +document.getElementById('genTemp').value,
+        max_tokens: +document.getElementById('genMaxTok').value,
+      };
+      const res = await fetch('/api/generate', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        document.getElementById('genOut').textContent = err.detail || 'Error';
+        return;
+      }
+      const d = await res.json();
+      document.getElementById('genOut').innerHTML = renderConfidenceTokens(d.tokens);
+      document.getElementById('genMeta').innerHTML = `
+        <div class="stat-box"><div class="k">Avg Token Confidence</div><div class="v">${d.avg_confidence_pct}%</div></div>
+        <div class="stat-box"><div class="k">Checkpoint Val Loss</div><div class="v">${d.ckpt_val_loss}</div></div>
+      `;
+    }
+
+    async function runHallucinationTest() {
+      const payload = {
+        ckpt_name: document.getElementById('halCkpt').value,
+        question: document.getElementById('halQuestion').value,
+        support: document.getElementById('halSupport').value,
+        correct_answer: document.getElementById('halTruth').value,
+      };
+      const res = await fetch('/api/hallucination_test', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || 'Error');
+        return;
+      }
+      const d = await res.json();
+      const renderBox = (obj) => {
+        if (!obj) return 'No context provided.';
+        const cls = obj.diagnosis.includes('Match') ? 'alert-good' : (obj.diagnosis.includes('Confident') ? 'alert-bad' : 'alert-warn');
+        return `
+          <div style="margin-bottom:10px;">${renderConfidenceTokens(obj.tokens)}</div>
+          <div class="alert ${cls}"><b>Diagnosis:</b> ${obj.diagnosis} (Avg Confidence: ${obj.avg_confidence_pct}%)</div>
+        `;
+      };
+      document.getElementById('halClosed').innerHTML = renderBox(d.closed_book);
+      document.getElementById('halGrounded').innerHTML = renderBox(d.grounded);
+    }
+
+    function escapeHtml(s) {
+      return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    loadSystem();
+    runTokenize();
+    updateEstimate();
+  </script>
+</body>
+</html>

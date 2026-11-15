@@ -1,0 +1,17 @@
+# Virtual environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Large generated datasets & model checkpoints (reproducible via scripts)
+data/
+checkpoints/
+*.bin
+*.pt
+*.safetensors
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
